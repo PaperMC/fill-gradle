@@ -1,0 +1,52 @@
+name: "build"
+
+on:
+  push:
+    branches: [ "**" ]
+    tags-ignore: [ "**" ]
+  pull_request:
+  release:
+    types: [ published ]
+
+jobs:
+  build:
+    # Only run on PRs if the source branch is on someone else's repo
+    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+    strategy:
+      matrix:
+        java: [ "21" ]
+        os: [ "ubuntu-latest" ]
+    runs-on: "${{ matrix.os }}"
+    steps:
+      - name: "git / checkout"
+        uses: "actions/checkout@v4"
+        with:
+          persist-credentials: "false"
+      - name: "java / setup ${{ matrix.java }}"
+        uses: "actions/setup-java@v4"
+        with:
+          distribution: "zulu"
+          java-version: "${{ matrix.java }}"
+      - name: "gradle / setup"
+        uses: "gradle/actions/setup-gradle@v4"
+      - name: "gradle / build"
+        run: "./gradlew build"
+      - name: "gradle / determine version type"
+        run: |
+          if [ "$(./gradlew properties | awk '/^version:/ { print $2; }' | grep '\-SNAPSHOT')" ]; then
+            echo "VERSION_TYPE=snapshot" >> $GITHUB_ENV
+          else
+            echo "VERSION_TYPE=release" >> $GITHUB_ENV
+          fi
+      - name: "gradle / publish snapshot"
+        if: "${{ env.VERSION_TYPE != 'release' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}"
+        run: ./gradlew publish
+        env:
+          ORG_GRADLE_PROJECT_paperUsername: "${{ secrets.PAPER_REPO_USERNAME }}"
+          ORG_GRADLE_PROJECT_paperPassword: "${{ secrets.PAPER_REPO_PASSWORD }}"
+      - name: "gradle / publish release"
+        if: "${{ env.VERSION_TYPE == 'release' && github.event_name == 'release' }}"
+        run: ./gradlew publishPlugins
+        env:
+          GRADLE_PUBLISH_KEY: "${{ secrets.GRADLE_PLUGIN_PORTAL_KEY }}"
+          GRADLE_PUBLISH_SECRET: "${{ secrets.GRADLE_PLUGIN_PORTAL_SECRET }}"

@@ -6,6 +6,7 @@ jackson = "2.18.1"
 indra = { id = "net.kyori.indra", version.ref = "indra" }
 indra-git = { id = "net.kyori.indra.git", version.ref = "indra" }
 indra-spotless = { id = "net.kyori.indra.licenser.spotless", version.ref = "indra" }
+publish-plugin = { id = "com.gradle.plugin-publish", version = "1.3.0" }
 
 [libraries]
 guava = { module = "com.google.guava:guava", version = "33.4.6-jre" }

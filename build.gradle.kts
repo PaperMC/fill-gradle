@@ -2,12 +2,18 @@ plugins {
   alias(libs.plugins.indra)
   alias(libs.plugins.indra.spotless)
   id("java-gradle-plugin")
+  alias(libs.plugins.publish.plugin)
 }
 
 gradlePlugin {
+  website = "https://github.com/PaperMC/fill-gradle"
+  vcsUrl = "https://github.com/PaperMC/fill-gradle"
+
   plugins.register("fill") {
     id = "io.papermc.fill.gradle"
     displayName = "Fill"
+    description = "Gradle plugin for publishing to Fill"
+    tags = listOf("fill", "publishing")
     implementationClass = "io.papermc.fill.gradle.FillPlugin"
   }
 }
@@ -19,6 +25,18 @@ indra {
 
   javaVersions {
     target(21)
+  }
+}
+
+publishing {
+  repositories {
+    maven("https://repo.papermc.io/repository/maven-snapshots/") {
+      name = "papermc"
+      credentials(PasswordCredentials::class)
+      mavenContent {
+        snapshotsOnly()
+      }
+    }
   }
 }
 
