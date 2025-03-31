@@ -24,7 +24,7 @@ import io.papermc.fill.model.Commit;
 import io.papermc.fill.model.Download;
 import io.papermc.fill.model.request.PublishRequest;
 import io.papermc.fill.model.response.v3.BuildResponse;
-
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -38,20 +38,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
+import java.util.function.Consumer;
+import javax.inject.Inject;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Property;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.UntrackedTask;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
+@UntrackedTask(because = "PublishToFillTask should always run when requested")
 public abstract class PublishToFillTask extends DefaultTask implements AutoCloseable {
   public static final String NAME = "publishToFill";
   private static final String USER_AGENT = "Fill (Gradle Plugin)";
@@ -66,11 +69,24 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
   @Nested
   public abstract Property<FillExtension> getExtension();
 
-  @Internal
-  public abstract Property<Git> getGit();
+  @Inject
+  public abstract ProjectLayout getProjectLayout();
+
+  private void withGit(final Consumer<Git> consumer) {
+    final File settingsDir = this.getProjectLayout().getSettingsDirectory().getAsFile();
+    try (final Git git = Git.open(settingsDir)) {
+      consumer.accept(git);
+    } catch (final IOException e) {
+      throw new GradleException("Failed to open git repository", e);
+    }
+  }
 
   @TaskAction
   public void run() {
+    this.withGit(this::runWithGit);
+  }
+
+  private void runWithGit(final Git git) {
     final FillExtension extension = this.getExtension().get();
 
     final String project = extension.getProject().get();
@@ -79,8 +95,6 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     final FillExtension.Build build = extension.getBuild();
     final int buildId = build.getId().get();
     final Instant time = Instant.now();
-
-    final Git git = this.getGit().get();
 
     final BuildResponse lastBuild = this.getBuilds(extension).getFirst();
 
@@ -203,7 +217,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       } else {
         throw new IOException("Unexpected response status: " + statusCode);
       }
-    } catch (final IOException  | InterruptedException e) {
+    } catch (final IOException | InterruptedException e) {
       throw new GradleException("Failed to fetch latest build data for version " + extension.getVersion().get(), e);
     }
   }

@@ -18,14 +18,11 @@ package io.papermc.fill.gradle;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.papermc.fill.gradle.task.PublishToFillTask;
-import net.kyori.indra.git.IndraGitExtension;
 import net.kyori.mammoth.Extensions;
 import net.kyori.mammoth.ProjectPlugin;
-import org.eclipse.jgit.api.Git;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.PluginContainer;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskContainer;
 import org.jspecify.annotations.NullMarked;
 
@@ -45,11 +42,8 @@ public class FillPlugin implements ProjectPlugin {
 
     final FillExtension extension = Extensions.findOrCreate(extensions, FillExtension.NAME, FillExtension.class, FillExtensionImpl.class);
 
-    final Provider<Git> git = project.provider(() -> project.getExtensions().getByType(IndraGitExtension.class).git());
-
     tasks.register(PublishToFillTask.NAME, PublishToFillTask.class, task -> {
       task.getExtension().set(extension);
-      task.getGit().set(git);
     });
   }
 }
