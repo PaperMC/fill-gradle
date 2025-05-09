@@ -57,4 +57,11 @@ dependencies {
   implementation(libs.jackson.databind)
   implementation(libs.jackson.datatype.jsr310)
   implementation(libs.mammoth)
+
+  testImplementation(libs.jUnit)
+  testRuntimeOnly("org.junit.platform", "junit-platform-launcher")
+}
+
+tasks.test {
+  useJUnitPlatform()
 }
