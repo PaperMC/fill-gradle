@@ -39,11 +39,11 @@ jobs:
             echo "VERSION_TYPE=release" >> $GITHUB_ENV
           fi
       - name: "gradle / publish snapshot"
-        if: "${{ env.VERSION_TYPE != 'release' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}"
+        if: "${{ env.VERSION_TYPE != 'release' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
         run: ./gradlew publish
         env:
-          ORG_GRADLE_PROJECT_paperUsername: "${{ secrets.PAPER_REPO_USERNAME }}"
-          ORG_GRADLE_PROJECT_paperPassword: "${{ secrets.PAPER_REPO_PASSWORD }}"
+          ORG_GRADLE_PROJECT_papermcUsername: "${{ secrets.PAPER_REPO_USERNAME }}"
+          ORG_GRADLE_PROJECT_papermcPassword: "${{ secrets.PAPER_REPO_PASSWORD }}"
       - name: "gradle / publish release"
         if: "${{ env.VERSION_TYPE == 'release' && github.event_name == 'release' }}"
         run: ./gradlew publishPlugins
