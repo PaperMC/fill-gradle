@@ -58,10 +58,7 @@ dependencies {
   implementation(libs.jackson.datatype.jsr310)
   implementation(libs.mammoth)
 
-  testImplementation(libs.jUnit)
+  testImplementation(libs.junit)
   testRuntimeOnly("org.junit.platform", "junit-platform-launcher")
 }
 
-tasks.test {
-  useJUnitPlatform()
-}
