@@ -16,7 +16,7 @@ You will also need to configure the plugin as well
 
 ```kts
 fill {
-  apiUrl("https://fill-data.papermc.io/") // This sets the api url to interact with
+  apiUrl("https://fill.papermc.io/") // This sets the api url to interact with
   apiToken("super-secure-token") // This sets the token
 
   project("paper") // This will set what project to publish it as
