@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.papermc.fill.gradle.FillPlugin;
 import io.papermc.fill.model.response.v3.BuildResponse;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 public class HttpTests {
 
     @Test
+    @Disabled // TODO
     public void test() throws InterruptedException, IOException {
         String urlString = "http://localhost:3002/v3/projects/paper/versions/1.21.1/builds"; // TODO: Replace with actual URL later
         String jsonResponse = fetchUrlContent(urlString);
