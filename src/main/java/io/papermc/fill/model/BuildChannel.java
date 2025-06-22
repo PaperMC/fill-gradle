@@ -19,6 +19,8 @@ import org.jspecify.annotations.NullMarked;
 
 @NullMarked
 public enum BuildChannel {
-  DEFAULT,
-  EXPERIMENTAL,
+  ALPHA,
+  BETA,
+  STABLE,
+  RECOMMENDED,
 }

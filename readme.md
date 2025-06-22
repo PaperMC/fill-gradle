@@ -25,7 +25,7 @@ fill {
 
   build { // This configures the information for the build 
     id = 1 // Id to release as, supports environment variable `BUILD_NUMBER`
-    channel = BuildChannel.DEFAULT //
+    channel = BuildChannel.STABLE //
 
     downloads { // Configure downloads to release
       register("server") { // Name of the download

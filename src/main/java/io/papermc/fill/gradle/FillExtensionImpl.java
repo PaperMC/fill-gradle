@@ -81,7 +81,7 @@ public class FillExtensionImpl implements FillExtension {
     @Inject
     public BuildImpl(final ObjectFactory objects, final ProviderFactory providers) {
       this.id = objects.property(Integer.class).convention(providers.environmentVariable("BUILD_NUMBER").map(Integer::parseInt));
-      this.channel = objects.property(BuildChannel.class).convention(BuildChannel.DEFAULT);
+      this.channel = objects.property(BuildChannel.class).convention(BuildChannel.STABLE);
       this.downloads = objects.domainObjectContainer(Download.class);
     }
 
