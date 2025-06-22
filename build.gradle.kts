@@ -1,8 +1,8 @@
 plugins {
-  alias(libs.plugins.indra)
-  alias(libs.plugins.indra.spotless)
   id("java-gradle-plugin")
   alias(libs.plugins.publish.plugin)
+  alias(libs.plugins.indra)
+  alias(libs.plugins.indra.spotless)
 }
 
 gradlePlugin {
