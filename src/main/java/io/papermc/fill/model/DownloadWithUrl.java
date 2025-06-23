@@ -21,7 +21,7 @@ import org.jspecify.annotations.NullMarked;
 @NullMarked
 public record DownloadWithUrl(
   String name,
-  String sha256,
+  Checksums checksums,
   int size,
   URI url
 ) {
