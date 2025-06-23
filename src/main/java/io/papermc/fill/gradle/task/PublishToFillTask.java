@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.hash.Hashing;
 import io.papermc.fill.gradle.FillExtension;
 import io.papermc.fill.gradle.FillPlugin;
+import io.papermc.fill.model.Checksums;
 import io.papermc.fill.model.Commit;
 import io.papermc.fill.model.Download;
 import io.papermc.fill.model.request.PublishRequest;
@@ -133,7 +134,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         final byte[] content = Files.readAllBytes(path);
         final String sha256 = Hashing.sha256().hashBytes(content).toString();
         final int size = (int) Files.size(path);
-        downloads.put(key, new Download(name, sha256, size));
+        downloads.put(key, new Download(name, new Checksums(sha256), size));
 
         final HttpRequest.Builder builder = HttpRequest.newBuilder();
         builder.header("User-Agent", USER_AGENT);
@@ -151,7 +152,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
 
       for (final HttpRequest request : requests) {
         try {
-          final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+          final HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
           if (response.statusCode() != 200) {
             throw new GradleException("Failed to post data to the API");
           }
@@ -184,7 +185,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         }
 
         final HttpRequest post = builder.build();
-        final HttpResponse<String> response = httpClient.send(post, HttpResponse.BodyHandlers.ofString());
+        final HttpResponse<String> response = this.httpClient.send(post, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
           throw new GradleException("Failed to post data to the API");
         }

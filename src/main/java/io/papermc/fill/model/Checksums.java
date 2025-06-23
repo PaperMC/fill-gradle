@@ -18,9 +18,7 @@ package io.papermc.fill.model;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
-public enum BuildChannel {
-  ALPHA,
-  BETA,
-  STABLE,
-  RECOMMENDED,
+public record Checksums(
+  String sha256
+) {
 }
