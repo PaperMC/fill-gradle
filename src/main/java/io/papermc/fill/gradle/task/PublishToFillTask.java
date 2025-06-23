@@ -31,6 +31,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -97,18 +98,18 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     final int buildId = build.getId().get();
     final Instant time = Instant.now();
 
-    final BuildResponse lastBuild = this.getBuilds(extension).getFirst();
-
-    final Commit lastCommit = lastBuild.commits().getFirst();
-
     final List<Commit> commits = new ArrayList<>();
-
     try (final RevWalk revWalk = new RevWalk(git.getRepository())) {
       final RevCommit currentCommit = revWalk.parseCommit(git.getRepository().exactRef(Constants.HEAD).getObjectId());
-      final RevCommit lastBuildCommit = revWalk.parseCommit(git.getRepository().resolve(lastCommit.sha()));
-
       revWalk.markStart(currentCommit);
-      revWalk.markUninteresting(lastBuildCommit);
+
+      final List<BuildResponse> builds = this.getBuilds(extension);
+      if (!builds.isEmpty()) {
+        final BuildResponse lastBuild = builds.getFirst();
+        final Commit lastCommit = lastBuild.commits().getFirst();
+        final RevCommit lastBuildCommit = revWalk.parseCommit(git.getRepository().resolve(lastCommit.sha()));
+        revWalk.markUninteresting(lastBuildCommit);
+      }
 
       for (final RevCommit commit : revWalk) {
         commits.add(new Commit(
@@ -138,8 +139,16 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
 
         final HttpRequest.Builder builder = HttpRequest.newBuilder();
         builder.header("User-Agent", USER_AGENT);
+        builder.header("Content-Type", "multipart/form-data; boundary=boundary");
         builder.uri(URI.create(extension.getApiUrl().get() + "/upload"));
-        builder.POST(HttpRequest.BodyPublishers.ofByteArray(content));
+
+        final List<byte[]> requestParts = new ArrayList<>();
+        requestParts.add(("--boundary\r\nContent-Disposition: form-data; name=\"request\"\r\nContent-Type: application/json\r\n\r\n{\"id\":\"" + id + "\"}\r\n").getBytes(StandardCharsets.UTF_8));
+        requestParts.add(("--boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" + name + "\"\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        requestParts.add(content);
+        requestParts.add(("\r\n--boundary").getBytes(StandardCharsets.UTF_8));
+
+        builder.POST(HttpRequest.BodyPublishers.ofByteArrays(requestParts));
 
         if (extension.getApiToken().isPresent()) {
           builder.header("Authorization", extension.getApiToken().get());
@@ -154,7 +163,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         try {
           final HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
           if (response.statusCode() != 200) {
-            throw new GradleException("Failed to post data to the API");
+            throw new GradleException("Failed to post data to the API: " + response.statusCode() + ": " + response.body());
           }
         } catch (final Exception e) {
           throw new GradleException("Failed to post data to the API", e);
@@ -176,6 +185,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       try {
         final HttpRequest.Builder builder = HttpRequest.newBuilder();
         builder.header("User-Agent", USER_AGENT);
+        builder.header("Content-Type", "application/json");
         builder.uri(URI.create(extension.getApiUrl().get() + "/publish"));
         builder.POST(HttpRequest.BodyPublishers.ofString(FillPlugin.MAPPER.writeValueAsString(request)));
         if (extension.getApiToken().isPresent()) {
@@ -186,8 +196,8 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
 
         final HttpRequest post = builder.build();
         final HttpResponse<String> response = this.httpClient.send(post, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-          throw new GradleException("Failed to post data to the API");
+        if (response.statusCode() != 201) {
+          throw new GradleException("Failed to post data to the API: " + response.statusCode() + ": " + response.body());
         }
       } catch (final Exception e) {
         throw new GradleException("Failed to post data to the API", e);
