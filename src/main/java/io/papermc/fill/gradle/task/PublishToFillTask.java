@@ -232,7 +232,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       if (versionEntry.builds().isEmpty()) {
         continue;
       }
-      lastVersionWithBuild = versionEntry.version().id();;
+      lastVersionWithBuild = versionEntry.version().id();
       break;
     }
 
