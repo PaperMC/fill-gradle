@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import javax.inject.Inject;
+import io.papermc.fill.model.response.v3.VersionResponse;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -98,29 +99,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     final int buildId = build.getId().get();
     final Instant time = Instant.now();
 
-    final List<Commit> commits = new ArrayList<>();
-    try (final RevWalk revWalk = new RevWalk(git.getRepository())) {
-      final RevCommit currentCommit = revWalk.parseCommit(git.getRepository().exactRef(Constants.HEAD).getObjectId());
-      revWalk.markStart(currentCommit);
-
-      final List<BuildResponse> builds = this.getBuilds(extension);
-      if (!builds.isEmpty()) {
-        final BuildResponse lastBuild = builds.getFirst();
-        final Commit lastCommit = lastBuild.commits().getFirst();
-        final RevCommit lastBuildCommit = revWalk.parseCommit(git.getRepository().resolve(lastCommit.sha()));
-        revWalk.markUninteresting(lastBuildCommit);
-      }
-
-      for (final RevCommit commit : revWalk) {
-        commits.add(new Commit(
-          commit.getName(),
-          commit.getAuthorIdent().getWhen().toInstant(),
-          commit.getFullMessage()
-        ));
-      }
-    } catch (final IOException e) {
-      throw new GradleException("Failed to get commit data", e);
-    }
+    final List<Commit> commits = gatherCommits(git, extension);
 
     final UUID id = UUID.randomUUID();
     final List<HttpRequest> requests = new ArrayList<>();
@@ -200,7 +179,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
           throw new GradleException("Failed to post data to the API: " + response.statusCode() + ": " + response.body());
         }
       } catch (final Exception e) {
-        throw new GradleException("Failed to post data to the API", e);
+        throw new GradleException("Failed to post data to the API: " + e.getMessage(), e);
       }
     } catch (final JsonProcessingException e) {
       throw new GradleException("Failed to serialize json", e);
@@ -209,11 +188,86 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     }
   }
 
-  private List<BuildResponse> getBuilds(final FillExtension extension) {
+  private List<Commit> gatherCommits(Git git, FillExtension extension) {
+    final List<Commit> commits = new ArrayList<>();
+    try (final RevWalk revWalk = new RevWalk(git.getRepository())) {
+      final RevCommit currentCommit = revWalk.parseCommit(git.getRepository().exactRef(Constants.HEAD).getObjectId());
+      revWalk.markStart(currentCommit);
+
+      final List<BuildResponse> builds = fetchLastVersionBuilds(extension);
+      if (!builds.isEmpty()) {
+        // not every build might have commits, we have to find the last one that did have some
+        BuildResponse lastBuildWithCommits = null;
+        for (final BuildResponse build : builds) {
+          if (!build.commits().isEmpty()) {
+            lastBuildWithCommits = build;
+            break;
+          }
+        }
+
+        if (lastBuildWithCommits != null) {
+          final Commit lastCommit = lastBuildWithCommits.commits().getFirst();
+          final RevCommit lastBuildCommit = revWalk.parseCommit(git.getRepository().resolve(lastCommit.sha()));
+          revWalk.markUninteresting(lastBuildCommit);
+        }
+      }
+
+      for (final RevCommit commit : revWalk) {
+        commits.add(new Commit(
+          commit.getName(),
+          commit.getAuthorIdent().getWhen().toInstant(),
+          commit.getFullMessage()
+        ));
+      }
+    } catch (final IOException e) {
+      throw new GradleException("Failed to get commit data", e);
+    }
+    return commits;
+  }
+
+  private List<BuildResponse> fetchLastVersionBuilds(FillExtension extension) {
+    final VersionResponse versions = getVersions(extension);
+    String lastVersionWithBuild = null;
+    for (final VersionResponse.VersionEntry versionEntry : versions.versions()) {
+      if (versionEntry.builds().isEmpty()) {
+        continue;
+      }
+      lastVersionWithBuild = versionEntry.version().id();;
+      break;
+    }
+
+    if (lastVersionWithBuild != null) {
+      return getBuilds(extension, lastVersionWithBuild);
+    }
+    return List.of();
+  }
+
+  private VersionResponse getVersions(final FillExtension extension) {
+    final String url = "%s/v3/projects/%s/versions".formatted(
+      extension.getApiUrl().get(),
+      extension.getProject().get()
+    );
+    try {
+
+      final HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("User-Agent", USER_AGENT).build();
+      HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      final int statusCode = response.statusCode();
+      if (statusCode == 200) {
+        final String json = response.body();
+        return FillPlugin.MAPPER.readValue(json, VersionResponse.class);
+      } else {
+        throw new IOException("Unexpected response status: " + statusCode);
+      }
+    } catch (final IOException | InterruptedException e) {
+      throw new GradleException("Failed to fetch latest build data for version " + extension.getVersion().get() + ": " + e.getMessage(), e);
+    }
+  }
+
+  private List<BuildResponse> getBuilds(final FillExtension extension, final String version) {
     final String url = "%s/v3/projects/%s/versions/%s/builds".formatted(
       extension.getApiUrl().get(),
       extension.getProject().get(),
-      extension.getVersion().get()
+      version
     );
     try {
 
@@ -229,7 +283,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         throw new IOException("Unexpected response status: " + statusCode);
       }
     } catch (final IOException | InterruptedException e) {
-      throw new GradleException("Failed to fetch latest build data for version " + extension.getVersion().get(), e);
+      throw new GradleException("Failed to fetch latest build data for version " + extension.getVersion().get() + ": " + e.getMessage(), e);
     }
   }
 
