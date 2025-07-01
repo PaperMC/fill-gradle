@@ -13,23 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.papermc.fill.model.response.v3;
+package io.papermc.fill.model;
 
-import io.papermc.fill.model.Java;
-import io.papermc.fill.model.Support;
 import java.util.List;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
-public record VersionResponse(
-  Version version,
-  List<Integer> builds
+public record Java(
+  JavaVersion version,
+  JavaFlags flags
 ) {
   @NullMarked
-  public record Version(
-    String id,
-    Support support,
-    Java java
+  public record JavaVersion(
+    int minimum
+  ) {
+  }
+
+  @NullMarked
+  public record JavaFlags(
+    List<String> recommended
   ) {
   }
 }

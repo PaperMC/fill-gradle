@@ -13,23 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.papermc.fill.model.response.v3;
+package io.papermc.fill.model;
 
-import io.papermc.fill.model.Java;
-import io.papermc.fill.model.Support;
-import java.util.List;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.time.LocalDate;
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @NullMarked
-public record VersionResponse(
-  Version version,
-  List<Integer> builds
+public record Support(
+  SupportStatus status,
+  @Nullable LocalDate end
 ) {
-  @NullMarked
-  public record Version(
-    String id,
-    Support support,
-    Java java
-  ) {
-  }
 }

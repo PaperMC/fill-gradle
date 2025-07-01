@@ -25,6 +25,7 @@ import io.papermc.fill.model.Commit;
 import io.papermc.fill.model.Download;
 import io.papermc.fill.model.request.PublishRequest;
 import io.papermc.fill.model.response.v3.BuildResponse;
+import io.papermc.fill.model.response.v3.VersionResponse;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -42,7 +43,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import javax.inject.Inject;
-import io.papermc.fill.model.response.v3.VersionResponse;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -99,7 +99,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     final int buildId = build.getId().get();
     final Instant time = Instant.now();
 
-    final List<Commit> commits = gatherCommits(git, extension);
+    final List<Commit> commits = this.gatherCommits(git, extension);
 
     final UUID id = UUID.randomUUID();
     final List<HttpRequest> requests = new ArrayList<>();
@@ -132,7 +132,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         if (extension.getApiToken().isPresent()) {
           builder.header("Authorization", extension.getApiToken().get());
         } else {
-          throw new GradleException("Api token is not present.");
+          throw new GradleException("API token is not present");
         }
 
         requests.add(builder.build());
@@ -162,10 +162,10 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       );
 
       try {
-        final HttpRequest.Builder builder = HttpRequest.newBuilder();
-        builder.header("User-Agent", USER_AGENT);
-        builder.header("Content-Type", "application/json");
-        builder.uri(URI.create(extension.getApiUrl().get() + "/publish"));
+        final HttpRequest.Builder builder = HttpRequest.newBuilder()
+          .uri(URI.create(extension.getApiUrl().get() + "/publish"))
+          .header("Content-Type", "application/json")
+          .header("User-Agent", USER_AGENT);
         builder.POST(HttpRequest.BodyPublishers.ofString(FillPlugin.MAPPER.writeValueAsString(request)));
         if (extension.getApiToken().isPresent()) {
           builder.headers("Authorization", extension.getApiToken().get());
@@ -194,7 +194,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       final RevCommit currentCommit = revWalk.parseCommit(git.getRepository().exactRef(Constants.HEAD).getObjectId());
       revWalk.markStart(currentCommit);
 
-      final List<BuildResponse> builds = fetchLastVersionBuilds(extension);
+      final List<BuildResponse> builds = this.fetchLastVersionBuilds(extension);
       if (!builds.isEmpty()) {
         // not every build might have commits, we have to find the last one that did have some
         BuildResponse lastBuildWithCommits = null;
@@ -225,36 +225,39 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     return commits;
   }
 
-  private List<BuildResponse> fetchLastVersionBuilds(FillExtension extension) {
-    final VersionResponse versions = getVersions(extension);
+  private List<BuildResponse> fetchLastVersionBuilds(final FillExtension extension) {
+    final List<VersionResponse> versions = this.getVersions(extension);
     String lastVersionWithBuild = null;
-    for (final VersionResponse.VersionEntry versionEntry : versions.versions()) {
-      if (versionEntry.builds().isEmpty()) {
-        continue;
+    for (final VersionResponse version : versions) {
+      if (!version.builds().isEmpty()) {
+        lastVersionWithBuild = version.version().id();
+        break;
       }
-      lastVersionWithBuild = versionEntry.version().id();
-      break;
     }
-
     if (lastVersionWithBuild != null) {
-      return getBuilds(extension, lastVersionWithBuild);
+      return this.getBuilds(extension, lastVersionWithBuild);
     }
     return List.of();
   }
 
-  private VersionResponse getVersions(final FillExtension extension) {
-    final String url = "%s/v3/projects/%s/versions".formatted(
+  private List<VersionResponse> getVersions(final FillExtension extension) {
+    final String url = String.format(
+      "%s/v3/projects/%s/versions",
       extension.getApiUrl().get(),
       extension.getProject().get()
     );
     try {
-
-      final HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("User-Agent", USER_AGENT).build();
-      HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      final HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("User-Agent", USER_AGENT)
+        .build();
+      final HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
       final int statusCode = response.statusCode();
       if (statusCode == 200) {
         final String json = response.body();
-        return FillPlugin.MAPPER.readValue(json, VersionResponse.class);
+        @SuppressWarnings("Convert2Diamond")
+        final TypeReference<List<VersionResponse>> type = new TypeReference<List<VersionResponse>>() {};
+        return FillPlugin.MAPPER.readValue(json, type);
       } else {
         throw new IOException("Unexpected response status: " + statusCode);
       }
@@ -264,20 +267,23 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
   }
 
   private List<BuildResponse> getBuilds(final FillExtension extension, final String version) {
-    final String url = "%s/v3/projects/%s/versions/%s/builds".formatted(
+    final String url = String.format(
+      "%s/v3/projects/%s/versions/%s/builds",
       extension.getApiUrl().get(),
       extension.getProject().get(),
       version
     );
     try {
-
-      final HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("User-Agent", USER_AGENT).build();
-      HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      final HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("User-Agent", USER_AGENT)
+        .build();
+      final HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
       final int statusCode = response.statusCode();
       if (statusCode == 200) {
         final String json = response.body();
-        @SuppressWarnings("Convert2Diamond") final TypeReference<List<BuildResponse>> type = new TypeReference<List<BuildResponse>>() {
-        };
+        @SuppressWarnings("Convert2Diamond")
+        final TypeReference<List<BuildResponse>> type = new TypeReference<List<BuildResponse>>() {};
         return FillPlugin.MAPPER.readValue(json, type);
       } else {
         throw new IOException("Unexpected response status: " + statusCode);
