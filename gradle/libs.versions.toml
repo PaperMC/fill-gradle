@@ -16,3 +16,4 @@ jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-dat
 jspecify = { module = "org.jspecify:jspecify", version = "1.0.0" }
 mammoth = { module = "net.kyori:mammoth", version = "1.4.0" }
 junit = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+jgit = "org.eclipse.jgit:org.eclipse.jgit:7.2.1.202505142326-r"
