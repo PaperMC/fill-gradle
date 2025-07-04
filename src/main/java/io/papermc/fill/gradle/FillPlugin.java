@@ -38,8 +38,6 @@ public class FillPlugin implements ProjectPlugin {
     final ExtensionContainer extensions,
     final TaskContainer tasks
   ) {
-    plugins.apply("net.kyori.indra.git");
-
     final FillExtension extension = Extensions.findOrCreate(extensions, FillExtension.NAME, FillExtension.class, FillExtensionImpl.class);
 
     tasks.register(PublishToFillTask.NAME, PublishToFillTask.class, task -> {
