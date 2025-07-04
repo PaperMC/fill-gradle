@@ -53,7 +53,6 @@ dependencies {
   compileOnlyApi(libs.jspecify)
 
   implementation(libs.guava)
-  implementation(libs.indra.git)
   implementation(libs.jackson.databind)
   implementation(libs.jackson.datatype.jsr310)
   implementation(libs.mammoth)
