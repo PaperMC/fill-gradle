@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import javax.inject.Inject;
+import io.papermc.fill.model.response.v3.VersionsResponse;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -226,9 +227,9 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
   }
 
   private List<BuildResponse> fetchLastVersionBuilds(final FillExtension extension) {
-    final List<VersionResponse> versions = this.getVersions(extension);
+    final VersionsResponse versions = this.getVersions(extension);
     String lastVersionWithBuild = null;
-    for (final VersionResponse version : versions) {
+    for (final VersionResponse version : versions.versions()) {
       if (!version.builds().isEmpty()) {
         lastVersionWithBuild = version.version().id();
         break;
@@ -240,7 +241,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     return List.of();
   }
 
-  private List<VersionResponse> getVersions(final FillExtension extension) {
+  private VersionsResponse getVersions(final FillExtension extension) {
     final String url = String.format(
       "%s/v3/projects/%s/versions",
       extension.getApiUrl().get(),
@@ -255,9 +256,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       final int statusCode = response.statusCode();
       if (statusCode == 200) {
         final String json = response.body();
-        @SuppressWarnings("Convert2Diamond")
-        final TypeReference<List<VersionResponse>> type = new TypeReference<List<VersionResponse>>() {};
-        return FillPlugin.MAPPER.readValue(json, type);
+        return FillPlugin.MAPPER.readValue(json, VersionsResponse.class);
       } else {
         throw new IOException("Unexpected response status: " + statusCode);
       }
