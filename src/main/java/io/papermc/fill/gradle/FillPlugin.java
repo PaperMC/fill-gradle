@@ -15,8 +15,6 @@
  */
 package io.papermc.fill.gradle;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.papermc.fill.gradle.task.PublishToFillTask;
 import net.kyori.mammoth.Extensions;
 import net.kyori.mammoth.ProjectPlugin;
@@ -28,9 +26,6 @@ import org.jspecify.annotations.NullMarked;
 
 @NullMarked
 public class FillPlugin implements ProjectPlugin {
-  public static final ObjectMapper MAPPER = new ObjectMapper()
-    .registerModule(new JavaTimeModule());
-
   @Override
   public void apply(
     final Project project,

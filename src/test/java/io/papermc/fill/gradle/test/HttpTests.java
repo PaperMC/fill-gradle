@@ -17,7 +17,7 @@ package io.papermc.fill.gradle.test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.papermc.fill.gradle.FillPlugin;
+import io.papermc.fill.gradle.task.PublishToFillTask;
 import io.papermc.fill.model.response.v3.BuildResponse;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -40,7 +40,7 @@ public class HttpTests {
         String jsonResponse = fetchUrlContent(urlString);
         assertNotNull(jsonResponse, "Fetched content should not be null");
 
-        ObjectMapper objectMapper = FillPlugin.MAPPER;
+        ObjectMapper objectMapper = PublishToFillTask.MapperHolder.MAPPER;
         List<BuildResponse> builds = objectMapper.readValue(jsonResponse, new TypeReference<>() {});
         assertNotNull(builds, "Parsed BuildsResponse should not be null");
     }

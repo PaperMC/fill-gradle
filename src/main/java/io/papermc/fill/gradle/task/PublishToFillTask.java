@@ -17,9 +17,10 @@ package io.papermc.fill.gradle.task;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.hash.Hashing;
 import io.papermc.fill.gradle.FillExtension;
-import io.papermc.fill.gradle.FillPlugin;
 import io.papermc.fill.model.Checksums;
 import io.papermc.fill.model.Commit;
 import io.papermc.fill.model.Download;
@@ -55,6 +56,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.UntrackedTask;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
@@ -167,7 +169,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
           .uri(URI.create(extension.getApiUrl().get() + "/publish"))
           .header("Content-Type", "application/json")
           .header("User-Agent", USER_AGENT);
-        builder.POST(HttpRequest.BodyPublishers.ofString(FillPlugin.MAPPER.writeValueAsString(request)));
+        builder.POST(HttpRequest.BodyPublishers.ofString(MapperHolder.MAPPER.writeValueAsString(request)));
         if (extension.getApiToken().isPresent()) {
           builder.headers("Authorization", extension.getApiToken().get());
         } else {
@@ -256,7 +258,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       final int statusCode = response.statusCode();
       if (statusCode == 200) {
         final String json = response.body();
-        return FillPlugin.MAPPER.readValue(json, VersionsResponse.class);
+        return MapperHolder.MAPPER.readValue(json, VersionsResponse.class);
       } else {
         throw new IOException("Unexpected response status: " + statusCode);
       }
@@ -283,7 +285,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         final String json = response.body();
         @SuppressWarnings("Convert2Diamond")
         final TypeReference<List<BuildResponse>> type = new TypeReference<List<BuildResponse>>() {};
-        return FillPlugin.MAPPER.readValue(json, type);
+        return MapperHolder.MAPPER.readValue(json, type);
       } else {
         throw new IOException("Unexpected response status: " + statusCode);
       }
@@ -295,5 +297,11 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
   @Override
   public void close() {
     this.httpClient.close();
+  }
+
+  @VisibleForTesting
+  public static final class MapperHolder {
+    public static final ObjectMapper MAPPER = new ObjectMapper()
+      .registerModule(new JavaTimeModule());
   }
 }
