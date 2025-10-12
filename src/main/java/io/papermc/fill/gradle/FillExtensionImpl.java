@@ -22,6 +22,7 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ProviderFactory;
 import org.jspecify.annotations.NullMarked;
+import java.time.Instant;
 
 @NullMarked
 public class FillExtensionImpl implements FillExtension {
@@ -30,6 +31,7 @@ public class FillExtensionImpl implements FillExtension {
   private final Property<String> project;
   private final Property<String> family;
   private final Property<String> version;
+  private final Property<String> buildTimestamp;
   private final Build build;
 
   @Inject
@@ -40,6 +42,9 @@ public class FillExtensionImpl implements FillExtension {
     this.family = objects.property(String.class);
     this.version = objects.property(String.class);
     this.build = objects.newInstance(BuildImpl.class);
+    this.buildTimestamp = objects.property(String.class)
+      .convention(providers.environmentVariable("BUILD_STARTED_AT")
+        .orElse(providers.gradleProperty("BUILD_STARTED_AT")));
   }
 
   @Override
@@ -70,6 +75,11 @@ public class FillExtensionImpl implements FillExtension {
   @Override
   public Build getBuild() {
     return this.build;
+  }
+
+  @Override
+  public Property<String> getBuildTimestamp() {
+    return this.buildTimestamp;
   }
 
   @NullMarked

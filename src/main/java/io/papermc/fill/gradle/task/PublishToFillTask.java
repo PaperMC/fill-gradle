@@ -100,7 +100,17 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     final String versionId = extension.getVersion().get();
     final FillExtension.Build build = extension.getBuild();
     final int buildId = build.getId().get();
-    final Instant time = Instant.now();
+    String timeString = this.getExtension().get().getBuildTimestamp().getOrNull();
+    final Instant time;
+    if (timeString != null) {
+      try {
+        time = Instant.ofEpochSecond(Long.parseLong(timeString));
+      } catch (final NumberFormatException e) {
+        throw new GradleException("Failed to parse build timestamp: " + timeString, e);
+      }
+    } else {
+      time = Instant.now();
+    }
 
     final List<Commit> commits = this.gatherCommits(git, extension);
 

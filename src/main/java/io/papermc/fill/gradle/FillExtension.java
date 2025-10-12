@@ -25,6 +25,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Optional;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
@@ -121,6 +122,23 @@ public interface FillExtension {
   default void build(final Action<? super Build> action) {
     action.execute(this.getBuild());
   }
+
+  /**
+   * The build timestamp in {@link java.time.format.DateTimeFormatter#ISO_INSTANT} format.
+   * <div>
+   *   Defaults to:
+   *   <ol>
+   *     <li>The environment variable {@code BUILD_STARTED_AT}, if set</li>
+   *     <li>The Gradle property {@code BUILD_STARTED_AT}, if set</li>
+   *     <li>The current time, if neither of the above are set</li>
+   *   </ol>
+   * </div>
+   *
+   * @return the build timestamp
+   */
+  @Input
+  @Optional
+  Property<String> getBuildTimestamp();
 
   @NullMarked
   interface Build {
