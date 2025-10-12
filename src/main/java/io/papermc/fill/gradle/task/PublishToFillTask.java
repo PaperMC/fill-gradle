@@ -37,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -100,12 +101,12 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     final String versionId = extension.getVersion().get();
     final FillExtension.Build build = extension.getBuild();
     final int buildId = build.getId().get();
-    String timeString = this.getExtension().get().getBuildTimestamp().getOrNull();
+    final String timeString = this.getExtension().get().getBuildTimestamp().getOrNull();
     final Instant time;
     if (timeString != null) {
       try {
-        time = Instant.ofEpochSecond(Long.parseLong(timeString));
-      } catch (final NumberFormatException e) {
+        time = Instant.parse(timeString);
+      } catch (final DateTimeParseException e) {
         throw new GradleException("Failed to parse build timestamp: " + timeString, e);
       }
     } else {
