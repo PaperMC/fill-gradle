@@ -229,7 +229,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       for (final RevCommit commit : revWalk) {
         commits.add(new Commit(
           commit.getName(),
-          commit.getAuthorIdent().getWhen().toInstant(),
+          commit.getAuthorIdent().getWhenAsInstant(),
           commit.getFullMessage()
         ));
       }
