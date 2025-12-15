@@ -8,3 +8,9 @@
 
 # macOS
 .DS_Store
+
+# Eclipse files
+/.classpath
+/.project
+/bin/
+/.settings/org.eclipse.buildship.core.prefs
