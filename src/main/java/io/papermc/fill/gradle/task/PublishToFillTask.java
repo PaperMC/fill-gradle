@@ -208,7 +208,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       final RevCommit currentCommit = revWalk.parseCommit(git.getRepository().exactRef(Constants.HEAD).getObjectId());
       revWalk.markStart(currentCommit);
 
-      final List<BuildResponse> builds = this.fetchLastVersionBuilds(extension);
+      final List<BuildResponse> builds = this.fetchPreviousBuilds(extension);
       if (!builds.isEmpty()) {
         // not every build might have commits, we have to find the last one that did have some
         BuildResponse lastBuildWithCommits = null;
@@ -239,17 +239,30 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     return commits;
   }
 
-  private List<BuildResponse> fetchLastVersionBuilds(final FillExtension extension) {
+  private List<BuildResponse> fetchPreviousBuilds(final FillExtension extension) {
+    final String currentVersion = extension.getVersion().get();
     final VersionsResponse versions = this.getVersions(extension);
-    String lastVersionWithBuild = null;
+
+    // Check if the current version already has builds
     for (final VersionResponse version : versions.versions()) {
-      if (!version.builds().isEmpty()) {
-        lastVersionWithBuild = version.version().id();
-        break;
+      if (version.version().id().equals(currentVersion) && !version.builds().isEmpty()) {
+        return this.fetchCurrentVersionBuilds(extension, currentVersion);
       }
     }
-    if (lastVersionWithBuild != null) {
-      return this.getBuilds(extension, lastVersionWithBuild);
+
+    // For new versions without builds, fall back to finding the last version with builds
+    return this.fetchLastVersionBuilds(extension, versions);
+  }
+
+  private List<BuildResponse> fetchCurrentVersionBuilds(final FillExtension extension, final String version) {
+    return this.getBuilds(extension, version);
+  }
+
+  private List<BuildResponse> fetchLastVersionBuilds(final FillExtension extension, final VersionsResponse versions) {
+    for (final VersionResponse version : versions.versions()) {
+      if (!version.builds().isEmpty()) {
+        return this.getBuilds(extension, version.version().id());
+      }
     }
     return List.of();
   }
