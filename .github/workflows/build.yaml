@@ -33,7 +33,8 @@ jobs:
           nsc cache gradle setup --init-gradle /tmp/init.gradle
       - name: "gradle / setup"
         uses: "gradle/actions/setup-gradle@v6"
-        cache-disabled: true # namespace handles this
+        with:
+          cache-disabled: true # namespace handles this
       - name: "gradle / build"
         run: "./gradlew --init-script=/tmp/init.gradle build"
       - name: "gradle / determine version type"
