@@ -36,3 +36,5 @@ fill {
   }
 }
 ```
+
+<img src="https://papermc.io/assets/misc/namespace-oss-badge.svg?project=fill-gradle" alt="CI powered by namespace badge" />
