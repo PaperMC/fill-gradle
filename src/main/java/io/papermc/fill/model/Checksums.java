@@ -16,9 +16,11 @@
 package io.papermc.fill.model;
 
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public record Checksums(
+  @Nullable String md5,
   String sha256
 ) {
 }
