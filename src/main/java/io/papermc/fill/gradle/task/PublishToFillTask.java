@@ -244,6 +244,10 @@ public abstract class PublishToFillTask extends DefaultTask {
 
       final List<BuildResponse> builds = this.fetchPreviousBuilds(client, extension);
       if (!builds.isEmpty()) {
+        if (hasLatestBuildWithEmptyCommits(builds)) {
+          return commits;
+        }
+
         // not every build might have commits, we have to find the last one that did have some
         BuildResponse lastBuildWithCommits = null;
         for (final BuildResponse build : builds) {
@@ -272,6 +276,11 @@ public abstract class PublishToFillTask extends DefaultTask {
       throw new GradleException("Failed to get commit data", e);
     }
     return commits;
+  }
+
+  @VisibleForTesting
+  static boolean hasLatestBuildWithEmptyCommits(final List<BuildResponse> builds) {
+    return !builds.isEmpty() && builds.getFirst().commits().isEmpty();
   }
 
   private boolean tryMarkPreviousBuildCommit(final Git git, final RevWalk revWalk, final RevCommit currentCommit, final Commit lastCommit) throws IOException {
