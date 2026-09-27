@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.Hashing;
 import io.papermc.fill.gradle.FillExtension;
 import io.papermc.fill.model.Checksums;
@@ -38,13 +39,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -62,7 +62,6 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.UntrackedTask;
-import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
@@ -131,11 +130,12 @@ public abstract class PublishToFillTask extends DefaultTask {
         final String name = download.getNameResolver().get().name(project, familyId, versionId, buildNumber);
         final Path path = download.getFile().get().getAsFile().toPath();
         final byte[] content = Files.readAllBytes(path);
+        final String md5 = Hashing.md5().hashBytes(content).toString();
         final String sha256 = Hashing.sha256().hashBytes(content).toString();
         final int size = content.length;
-        final Download requestDownload = new Download(name, new Checksums(sha256), size);
+        final Download requestDownload = new Download(name, APPLICATION_JAVA_ARCHIVE, new Checksums(md5, sha256), size);
         downloads.put(key, requestDownload);
-        uploads.add(new PendingUpload(requestDownload, content, APPLICATION_JAVA_ARCHIVE, contentMd5(content)));
+        uploads.add(new PendingUpload(requestDownload, content));
       }
 
       for (final PendingUpload upload : uploads) {
@@ -177,7 +177,7 @@ public abstract class PublishToFillTask extends DefaultTask {
     final UUID id,
     final PendingUpload upload
   ) throws IOException, InterruptedException {
-    final StageRequest request = new StageRequest(id, upload.download(), upload.contentType(), upload.contentMd5());
+    final StageRequest request = new StageRequest(id, upload.download());
     final HttpRequest httpRequest = HttpRequest.newBuilder()
       .uri(URI.create(apiUrl(extension) + "/v3/publishing/stage"))
       .header("Authorization", apiToken)
@@ -195,8 +195,8 @@ public abstract class PublishToFillTask extends DefaultTask {
   private void upload(final HttpClient client, final URI uploadUrl, final PendingUpload upload) throws IOException, InterruptedException {
     final HttpRequest request = HttpRequest.newBuilder()
       .uri(uploadUrl)
-      .header("Content-MD5", upload.contentMd5())
-      .header("Content-Type", upload.contentType())
+      .header("Content-MD5", generateContentMd5(upload.download().checksums().md5()))
+      .header("Content-Type", upload.download().type())
       .header("x-amz-meta-sha256", upload.download().checksums().sha256())
       .PUT(HttpRequest.BodyPublishers.ofByteArray(upload.content()))
       .build();
@@ -225,15 +225,12 @@ public abstract class PublishToFillTask extends DefaultTask {
     }
   }
 
-  private static String contentMd5(final byte[] content) {
-    try {
-      return Base64.getEncoder().encodeToString(MessageDigest.getInstance("MD5").digest(content));
-    } catch (final NoSuchAlgorithmException e) {
-      throw new AssertionError(e);
-    }
+  @VisibleForTesting
+  static String generateContentMd5(final String string) {
+    return Base64.getEncoder().encodeToString(HexFormat.of().parseHex(string));
   }
 
-  private record PendingUpload(Download download, byte[] content, String contentType, String contentMd5) {
+  private record PendingUpload(Download download, byte[] content) {
   }
 
   private List<Commit> gatherCommits(final HttpClient client, Git git, FillExtension extension) {

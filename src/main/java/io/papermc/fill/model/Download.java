@@ -17,10 +17,12 @@ package io.papermc.fill.model;
 
 import java.net.URI;
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public record Download(
   String name,
+  @Nullable String type,
   Checksums checksums,
   int size
 ) implements AbstractDownload {
