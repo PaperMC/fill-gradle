@@ -48,7 +48,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Consumer;
 import javax.inject.Inject;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -68,12 +67,10 @@ import org.jspecify.annotations.NullMarked;
 
 @NullMarked
 @UntrackedTask(because = "PublishToFillTask should always run when requested")
-public abstract class PublishToFillTask extends DefaultTask implements AutoCloseable {
+public abstract class PublishToFillTask extends DefaultTask {
   public static final String NAME = "publishToFill";
   private static final String APPLICATION_JAVA_ARCHIVE = "application/java-archive";
   private static final String USER_AGENT = "Fill (Gradle Plugin)";
-  private final HttpClient httpClient = HttpClient.newBuilder()
-    .build();
 
   public PublishToFillTask() {
     this.setGroup("fill");
@@ -86,21 +83,20 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
   @Inject
   public abstract ProjectLayout getProjectLayout();
 
-  private void withGit(final Consumer<Git> consumer) {
+  @TaskAction
+  public void run() {
     final File settingsDir = this.getProjectLayout().getSettingsDirectory().getAsFile();
-    try (final Git git = Git.open(settingsDir)) {
-      consumer.accept(git);
+    try (
+      final Git git = Git.open(settingsDir);
+      final HttpClient client = HttpClient.newBuilder().build();
+    ) {
+      this.run(git, client);
     } catch (final IOException e) {
       throw new GradleException("Failed to open git repository", e);
     }
   }
 
-  @TaskAction
-  public void run() {
-    this.withGit(this::runWithGit);
-  }
-
-  private void runWithGit(final Git git) {
+  private void run(final Git git, final HttpClient client) {
     final FillExtension extension = this.getExtension().get();
 
     final String project = extension.getProject().get();
@@ -120,7 +116,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       time = Instant.now();
     }
 
-    final List<Commit> commits = this.gatherCommits(git, extension);
+    final List<Commit> commits = this.gatherCommits(client, git, extension);
 
     if (!extension.getApiToken().isPresent()) {
       throw new GradleException("API token is not present");
@@ -143,8 +139,8 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       }
 
       for (final PendingUpload upload : uploads) {
-        final URI uploadUrl = this.requestUploadUrl(extension, apiToken, id, upload);
-        this.upload(uploadUrl, upload);
+        final URI uploadUrl = this.requestUploadUrl(client, extension, apiToken, id, upload);
+        this.upload(client, uploadUrl, upload);
       }
 
       final PublishRequest request = new PublishRequest(
@@ -158,7 +154,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         commits.reversed(),
         downloads
       );
-      this.publish(extension, apiToken, request);
+      this.publish(client, extension, apiToken, request);
     } catch (final JsonProcessingException e) {
       throw new GradleException("Failed to serialize JSON", e);
     } catch (final IOException e) {
@@ -175,6 +171,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
   }
 
   private URI requestUploadUrl(
+    final HttpClient client,
     final FillExtension extension,
     final String apiToken,
     final UUID id,
@@ -188,14 +185,14 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       .header("User-Agent", USER_AGENT)
       .POST(HttpRequest.BodyPublishers.ofString(MapperHolder.MAPPER.writeValueAsString(request)))
       .build();
-    final HttpResponse<String> response = this.httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
     if (response.statusCode() != 200) {
       throw new IOException("Failed to create upload URL: " + response.statusCode() + ": " + response.body());
     }
     return MapperHolder.MAPPER.readValue(response.body(), StageResponse.class).url();
   }
 
-  private void upload(final URI uploadUrl, final PendingUpload upload) throws IOException, InterruptedException {
+  private void upload(final HttpClient client, final URI uploadUrl, final PendingUpload upload) throws IOException, InterruptedException {
     final HttpRequest request = HttpRequest.newBuilder()
       .uri(uploadUrl)
       .header("Content-MD5", upload.contentMd5())
@@ -203,13 +200,14 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       .header("x-amz-meta-sha256", upload.download().checksums().sha256())
       .PUT(HttpRequest.BodyPublishers.ofByteArray(upload.content()))
       .build();
-    final HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
     if (response.statusCode() / 100 != 2) {
       throw new IOException("Failed to upload file: " + response.statusCode() + ": " + response.body());
     }
   }
 
   private void publish(
+    final HttpClient client,
     final FillExtension extension,
     final String apiToken,
     final PublishRequest request
@@ -221,7 +219,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
       .header("User-Agent", USER_AGENT)
       .POST(HttpRequest.BodyPublishers.ofString(MapperHolder.MAPPER.writeValueAsString(request)))
       .build();
-    final HttpResponse<String> response = this.httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
     if (response.statusCode() != 201) {
       throw new IOException("Failed to publish build: " + response.statusCode() + ": " + response.body());
     }
@@ -238,13 +236,13 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
   private record PendingUpload(Download download, byte[] content, String contentType, String contentMd5) {
   }
 
-  private List<Commit> gatherCommits(Git git, FillExtension extension) {
+  private List<Commit> gatherCommits(final HttpClient client, Git git, FillExtension extension) {
     final List<Commit> commits = new ArrayList<>();
     try (final RevWalk revWalk = new RevWalk(git.getRepository())) {
       final RevCommit currentCommit = revWalk.parseCommit(git.getRepository().exactRef(Constants.HEAD).getObjectId());
       revWalk.markStart(currentCommit);
 
-      final List<BuildResponse> builds = this.fetchPreviousBuilds(extension);
+      final List<BuildResponse> builds = this.fetchPreviousBuilds(client, extension);
       if (!builds.isEmpty()) {
         // not every build might have commits, we have to find the last one that did have some
         BuildResponse lastBuildWithCommits = null;
@@ -326,35 +324,35 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     );
   }
 
-  private List<BuildResponse> fetchPreviousBuilds(final FillExtension extension) {
+  private List<BuildResponse> fetchPreviousBuilds(final HttpClient client, final FillExtension extension) {
     final String currentVersion = extension.getVersion().get();
-    final VersionsResponse versions = this.getVersions(extension);
+    final VersionsResponse versions = this.getVersions(client, extension);
 
     // Check if the current version already has builds
     for (final VersionResponse version : versions.versions()) {
       if (version.version().id().equals(currentVersion) && !version.builds().isEmpty()) {
-        return this.fetchCurrentVersionBuilds(extension, currentVersion);
+        return this.fetchCurrentVersionBuilds(client, extension, currentVersion);
       }
     }
 
     // For new versions without builds, fall back to finding the last version with builds
-    return this.fetchLastVersionBuilds(extension, versions);
+    return this.fetchLastVersionBuilds(client, extension, versions);
   }
 
-  private List<BuildResponse> fetchCurrentVersionBuilds(final FillExtension extension, final String version) {
-    return this.getBuilds(extension, version);
+  private List<BuildResponse> fetchCurrentVersionBuilds(final HttpClient client, final FillExtension extension, final String version) {
+    return this.getBuilds(client, extension, version);
   }
 
-  private List<BuildResponse> fetchLastVersionBuilds(final FillExtension extension, final VersionsResponse versions) {
+  private List<BuildResponse> fetchLastVersionBuilds(final HttpClient client, final FillExtension extension, final VersionsResponse versions) {
     for (final VersionResponse version : versions.versions()) {
       if (!version.builds().isEmpty()) {
-        return this.getBuilds(extension, version.version().id());
+        return this.getBuilds(client, extension, version.version().id());
       }
     }
     return List.of();
   }
 
-  private VersionsResponse getVersions(final FillExtension extension) {
+  private VersionsResponse getVersions(final HttpClient client, final FillExtension extension) {
     final String url = String.format(
       "%s/v3/projects/%s/versions",
       apiUrl(extension),
@@ -365,7 +363,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         .uri(URI.create(url))
         .header("User-Agent", USER_AGENT)
         .build();
-      final HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      final HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
       final int statusCode = response.statusCode();
       if (statusCode == 200) {
         final String json = response.body();
@@ -378,7 +376,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     }
   }
 
-  private List<BuildResponse> getBuilds(final FillExtension extension, final String version) {
+  private List<BuildResponse> getBuilds(final HttpClient client, final FillExtension extension, final String version) {
     final String url = String.format(
       "%s/v3/projects/%s/versions/%s/builds",
       apiUrl(extension),
@@ -390,7 +388,7 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
         .uri(URI.create(url))
         .header("User-Agent", USER_AGENT)
         .build();
-      final HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      final HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
       final int statusCode = response.statusCode();
       if (statusCode == 200) {
         final String json = response.body();
@@ -403,11 +401,6 @@ public abstract class PublishToFillTask extends DefaultTask implements AutoClose
     } catch (final IOException | InterruptedException e) {
       throw new GradleException("Failed to fetch latest build data for version " + extension.getVersion().get() + ": " + e.getMessage(), e);
     }
-  }
-
-  @Override
-  public void close() {
-    this.httpClient.close();
   }
 
   @VisibleForTesting
